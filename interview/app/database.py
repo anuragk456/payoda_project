@@ -10,9 +10,11 @@ def get_connection():
         CREATE TABLE IF NOT EXISTS interview_transcripts (
             id INTEGER PRIMARY KEY,
             username TEXT NOT NULL,
+            role TEXT NOT NULL,
             interview_id INTEGER NOT NULL,
             transcript TEXT NOT NULL,
-            status TEXT NOT NULL
+            status TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     return conn
