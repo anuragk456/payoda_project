@@ -8,12 +8,11 @@ def get_connection():
     conn = duckdb.connect(DB_PATH)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS interview_transcripts (
-            id INTEGER PRIMARY KEY,
             username TEXT NOT NULL,
-            role TEXT NOT NULL,
-            interview_id INTEGER NOT NULL,
+            role TEXT NOT NULL CHECK (role IN ('candidate', 'panel', 'ai')),
+            interview_id BIGINT NOT NULL,
             transcript TEXT NOT NULL,
-            status TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'inprogress' CHECK (status IN ('completed', 'inprogress')),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)

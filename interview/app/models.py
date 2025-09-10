@@ -1,38 +1,25 @@
 from app.database import get_connection
+from typing import List, Tuple
+import datetime
 
-def insert_transcript(username, role, interview_id, transcript, status):
+def insert_transcript(username: str, role: str, interview_id: int, transcript: str, status: str = "inprogress"):
     conn = get_connection()
     conn.execute(
-        "INSERT INTO interview_transcripts (username, role, interview_id, transcript, status) VALUES (?, ?, ?, ?, ?)",
+        """
+        INSERT INTO interview_transcripts (username, role, interview_id, transcript, status)
+        VALUES (?, ?, ?, ?, ?)
+        """,
         [username, role, interview_id, transcript, status]
     )
-    row_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
     conn.close()
-    return row_id
+    return {"username": username, "role": role, "interview_id": interview_id}
 
 
-def get_completed_transcripts():
-    conn = get_connection()
-    rows = conn.execute("""
-        SELECT id, username, role, interview_id, transcript
-        FROM interview_transcripts
-        WHERE status = 'completed'
-    """).fetchall()
-    conn.close()
-    return rows
-
-
-def delete_transcript(tid: int):
-    conn = get_connection()
-    conn.execute("DELETE FROM interview_transcripts WHERE id = ?", [tid])
-    conn.close()
-
-
-def get_stale_inprogress_transcripts(cutoff):
+def get_stale_inprogress_transcripts(cutoff: datetime.datetime):
     conn = get_connection()
     rows = conn.execute(
         """
-        SELECT id, username, role, interview_id
+        SELECT username, role, interview_id
         FROM interview_transcripts
         WHERE status = 'inprogress' AND created_at < ?
         """,
@@ -40,3 +27,32 @@ def get_stale_inprogress_transcripts(cutoff):
     ).fetchall()
     conn.close()
     return rows
+
+
+def get_completed_interview_ids():
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT DISTINCT interview_id
+        FROM interview_transcripts
+        WHERE status = 'completed'
+    """).fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
+
+def get_conversation_by_interview(interview_id: int):
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT username, role, transcript, created_at
+        FROM interview_transcripts
+        WHERE interview_id = ?
+        ORDER BY created_at ASC
+    """, [interview_id]).fetchall()
+    conn.close()
+    return rows
+
+
+def delete_transcripts_by_interview(interview_id: int):
+    conn = get_connection()
+    conn.execute("DELETE FROM interview_transcripts WHERE interview_id = ?", [interview_id])
+    conn.close()

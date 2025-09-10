@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 class TranscriptCreate(BaseModel):
-    email: str
+    username: str
     role: str
     interview_id: int
     transcript: str

@@ -1,23 +1,30 @@
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.pagesizes import A4
 import os
 
-def generate_transcript_pdf(username: str, role: str, interview_id: int, transcript: str, output_dir: str) -> str:
-    os.makedirs(output_dir, exist_ok=True)
-    file_path = os.path.join(output_dir, f"transcript_{interview_id}_{username}.pdf")
+def generate_transcript_pdf(candidate, interview_id, conversation, transcript_dir, header_date):
+    os.makedirs(transcript_dir, exist_ok=True)
+    
+    candidate_display = candidate.split("@")[0] if "@" in candidate else candidate
+    pdf_path = os.path.join(transcript_dir, f"{candidate_display}_{interview_id}.pdf")
 
+    doc = SimpleDocTemplate(pdf_path, pagesize=A4)
     styles = getSampleStyleSheet()
-    doc = SimpleDocTemplate(file_path)
+
+    title_style = ParagraphStyle("Title", parent=styles["Heading1"], fontSize=14, spaceAfter=12)
+    speaker_style = ParagraphStyle("Speaker", parent=styles["Normal"], fontSize=10, spaceAfter=4, leading=14)
+
     story = []
-
-    story.append(Paragraph(f"Transcript for Interview {interview_id}", styles["Title"]))
+    story.append(Paragraph(f"Interview with {candidate_display} - {header_date} - Transcript", title_style))
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Transcript", styles["Heading2"]))
     story.append(Spacer(1, 12))
 
-    story.append(Paragraph(f"Username: {username}", styles["Normal"]))
-    story.append(Paragraph(f"Role: {role}", styles["Normal"]))
-    story.append(Spacer(1, 12))
-
-    story.append(Paragraph(transcript.replace("\n", "<br/>"), styles["BodyText"]))
+    for username, role, text, created_at in conversation:
+        display_name = username.split("@")[0] if "@" in username else username
+        line = f"{display_name} [{created_at.strftime('%H:%M:%S')}] : {text}"
+        story.append(Paragraph(line, speaker_style))
 
     doc.build(story)
-    return file_path
+    return pdf_path
