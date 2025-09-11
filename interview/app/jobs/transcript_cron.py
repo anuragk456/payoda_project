@@ -41,14 +41,13 @@ def process_completed_transcripts():
                 print(f"Error processing interview {interview_id}: {e}")
                 continue
 
-        # Clean up stale transcripts
         cutoff = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
         stale_transcripts = models.get_stale_inprogress_transcripts(cutoff)
 
         if stale_transcripts:
-            for username, role, interview_id in stale_transcripts:  # Fixed unpacking
+            for username, role, interview_id in stale_transcripts:
                 try:
-                    models.delete_transcript(interview_id)  # You might need to adjust this based on your actual delete method
+                    models.delete_transcript(interview_id)
                     print(f"Deleted stale transcript (interview {interview_id}, user {username})")
                 except Exception as e:
                     print(f"Error deleting stale transcript for interview {interview_id}: {e}")

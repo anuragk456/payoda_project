@@ -3,7 +3,7 @@ import firebird.driver as fdb
 def get_connection():
 
     connection = fdb.connect(
-        'localhost:/Users/Apple/firebird_db_files/transcript.fdb',
+        'localhost:/Users/anuragakp456/firebird_DB/transcript.fdb',
         user='SYSDBA',
         password='masterkey'  
     )
@@ -11,9 +11,8 @@ def get_connection():
     return connection
 
 
-
-        # cursor = connection.cursor()
-        # cursor.execute("""
+#  Please create the table manually in your Firebird database using a database management tool or script.
+        
         #     CREATE TABLE interview_transcripts (
         #         username VARCHAR(255) NOT NULL,
         #         role VARCHAR(20) NOT NULL,
@@ -24,5 +23,4 @@ def get_connection():
                 
         #         CONSTRAINT chk_role4 CHECK (role IN ('candidate', 'panel', 'ai')),
         #         CONSTRAINT chk_status4 CHECK (status IN ('completed', 'inprogress'))
-        #     )
-        # """)
+        #     );
