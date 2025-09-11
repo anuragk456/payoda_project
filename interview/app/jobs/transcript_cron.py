@@ -27,9 +27,9 @@ def process_completed_transcripts():
             header_date=formatted_date
         )
         if os.path.exists(pdf_path):
-            print(f"✅ PDF created at {pdf_path}")
+            print(f"PDF created at {pdf_path}")
             models.delete_transcripts_by_interview(interview_id)
-            print(f"🗑️ Deleted all transcripts for interview {interview_id}")
+            print(f"Deleted all transcripts for interview {interview_id}")
         else:
             print(f"Failed to create PDF for interview {interview_id}, skipping delete")
 
@@ -39,4 +39,4 @@ def process_completed_transcripts():
     if stale_transcripts:
         for tid, username, interview_id in stale_transcripts:
             models.delete_transcript(tid)
-            print(f"🗑️ Deleted stale transcript ID {tid} (interview {interview_id}, user {username})")
+            print(f"Deleted stale transcript ID {tid} (interview {interview_id}, user {username})")
