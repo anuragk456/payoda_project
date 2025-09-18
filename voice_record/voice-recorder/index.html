@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Recorder</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            min-width: 400px;
+        }
+
+        .record-button {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+
+        .record-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+        }
+
+        .record-button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+
+        .recording {
+            background: #27ae60 !important;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .status {
+            margin: 20px 0;
+            font-size: 16px;
+            color: #333;
+        }
+
+        .audio-controls {
+            margin-top: 20px;
+        }
+
+        audio {
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        .silence-timer {
+            color: #e74c3c;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .error {
+            color: #e74c3c;
+            margin: 20px 0;
+        }
+
+        .recording-count {
+            background: #3498db;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: bold;
+        }
+
+        .audio-segment {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            text-align: left;
+        }
+
+        .audio-segment p {
+            margin: 0 0 10px 0;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .record-button.small {
+            padding: 8px 16px;
+            font-size: 14px;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Voice Recorder</h1>
+        <div class="status" id="status">Ready to record</div>
+        
+        <button class="record-button" id="recordButton" onclick="toggleRecording()">
+            Start Recording
+        </button>
+        
+        <div class="silence-timer" id="silenceTimer" style="display: none;">
+            Silence detected: <span id="timerCount">0</span>s
+        </div>
+        
+        <div class="recording-count" id="recordingCount" style="display: none;">
+            Recordings created: <span id="countDisplay">0</span>
+        </div>
+
+        <div class="audio-controls" id="audioControls" style="display: none;">
+            <h3>Recorded Audio Segments:</h3>
+            <div id="audioSegments"></div>
+            <br>
+            <button class="record-button" onclick="downloadAllRecordings()">Download All</button>
+            <button class="record-button" onclick="clearAllRecordings()">Clear All</button>
+        </div>
+        
+        <div class="error" id="error" style="display: none;">
+            Your browser doesn't support audio recording.
+        </div>
+    </div>
+
+    <script>
+        class VoiceRecorder {
+            constructor() {
+                this.isRecording = false;
+                this.isSupported = false;
+                this.audioUrl = null;
+                this.silenceTimer = 0;
+                this.recordingCount = 0;
+                this.audioBlobs = [];
+
+                this.mediaRecorder = null;
+                this.audioChunks = [];
+                this.stream = null;
+                this.audioContext = null;
+                this.analyser = null;
+                this.silenceTimeout = null;
+                this.volumeCheckInterval = null;
+                this.timerInterval = null;
+                
+                // Enhanced noise filtering for interview recording
+                this.SILENCE_THRESHOLD = 50; // Higher threshold to ignore background noise
+                this.SILENCE_DURATION = 4000; // 4 seconds
+                this.VOICE_THRESHOLD = 80; // Minimum level to consider as actual voice
+                this.NOISE_GATE_THRESHOLD = 40; // Strong noise gate to block ambient sounds
+                
+                this.init();
+            }
+            
+            init() {
+                this.checkBrowserSupport();
+                this.updateUI();
+            }
+            
+            checkBrowserSupport() {
+                this.isSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+                if (!this.isSupported) {
+                    document.getElementById('error').style.display = 'block';
+                    document.getElementById('recordButton').disabled = true;
+                }
+            }
+            
+            async toggleRecording() {
+                if (this.isRecording) {
+                    this.stopRecording();
+                } else {
+                    await this.startRecording();
+                }
+            }
+            
+            async startRecording() {
+                try {
+                    this.updateStatus('Requesting microphone access...');
+                    
+                    // Request microphone access with maximum noise suppression for interviews
+                    this.stream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true,
+                            sampleRate: 44100,
+                            channelCount: 1, // Mono for better voice focus
+                            latency: 0.01,   // Low latency for real-time processing
+                            volume: 1.0      // Full volume capture
+                        }
+                    });
+                    
+                    // Set up audio context for volume analysis
+                    this.setupAudioAnalysis();
+                    
+                    // Set up MediaRecorder
+                    this.mediaRecorder = new MediaRecorder(this.stream, {
+                        mimeType: 'audio/webm;codecs=opus'
+                    });
+                    
+                    this.audioChunks = [];
+                    
+                    this.mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            this.audioChunks.push(event.data);
+                        }
+                    };
+                    
+                    this.mediaRecorder.onstop = () => {
+                        this.createAudioBlob();
+                    };
+                    
+                    this.mediaRecorder.start(100); // Collect data every 100ms
+                    this.isRecording = true;
+                    this.updateStatus('Recording in loop mode... (new recording every 4 seconds of silence)');
+                    this.updateUI();
+                    
+                    // Start monitoring for silence
+                    this.startSilenceDetection();
+                    
+                } catch (error) {
+                    console.error('Error starting recording:', error);
+                    this.updateStatus('Error accessing microphone');
+                }
+            }
+            
+            setupAudioAnalysis() {
+                this.audioContext = new AudioContext();
+                this.analyser = this.audioContext.createAnalyser();
+                this.analyser.fftSize = 512;
+                this.analyser.smoothingTimeConstant = 0.3;
+                
+                if (this.stream) {
+                    const source = this.audioContext.createMediaStreamSource(this.stream);
+                    source.connect(this.analyser);
+                }
+            }
+            
+            startSilenceDetection() {
+                this.volumeCheckInterval = setInterval(() => {
+                    if (this.analyser) {
+                        const volume = this.getVolumeLevel();
+                        const isVoice = this.isVoiceDetected(volume);
+                        
+                        // Debug: Show volume level and voice detection
+                        console.log('Volume:', volume, 'Voice:', isVoice, 'Silence Threshold:', this.SILENCE_THRESHOLD);
+                        
+                        if (!isVoice) {
+                            // No voice detected (silence or background noise)
+                            if (this.silenceTimeout === null) {
+                                console.log('No voice detected, starting silence timer...');
+                                this.startSilenceTimer();
+                            }
+                        } else {
+                            // Clear voice detected, reset silence timer
+                            if (this.silenceTimeout !== null) {
+                                console.log('Clear voice detected, resetting timer...');
+                            }
+                            this.resetSilenceTimer();
+                        }
+                    }
+                }, 100);
+            }
+            
+            isVoiceDetected(volume) {
+                // Voice must be above noise gate AND above voice threshold
+                return volume > this.NOISE_GATE_THRESHOLD && volume > this.VOICE_THRESHOLD;
+            }
+            
+            getVolumeLevel() {
+                if (!this.analyser) return 0;
+                
+                const bufferLength = this.analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                this.analyser.getByteFrequencyData(dataArray);
+                
+                // Focus on human voice frequency range (85Hz - 3400Hz)
+                // Assuming sample rate of 44100Hz, each bin represents ~86Hz
+                const voiceStartBin = Math.floor(85 / 86);   // ~1
+                const voiceEndBin = Math.floor(3400 / 86);   // ~40
+                
+                let voiceSum = 0;
+                let noiseSum = 0;
+                let voiceCount = 0;
+                let noiseCount = 0;
+                
+                for (let i = 0; i < bufferLength; i++) {
+                    if (i >= voiceStartBin && i <= voiceEndBin) {
+                        // Voice frequency range
+                        voiceSum += dataArray[i];
+                        voiceCount++;
+                    } else {
+                        // Outside voice range (likely noise)
+                        noiseSum += dataArray[i];
+                        noiseCount++;
+                    }
+                }
+                
+                const voiceAverage = voiceCount > 0 ? voiceSum / voiceCount : 0;
+                const noiseAverage = noiseCount > 0 ? noiseSum / noiseCount : 0;
+                
+                // Return voice level minus noise level for better discrimination
+                return Math.max(0, voiceAverage - (noiseAverage * 0.5));
+            }
+            
+            startSilenceTimer() {
+                this.silenceTimer = 0;
+                document.getElementById('silenceTimer').style.display = 'block';
+                console.log('Starting 4-second countdown...');
+                
+                this.timerInterval = setInterval(() => {
+                    this.silenceTimer++;
+                    document.getElementById('timerCount').textContent = this.silenceTimer;
+                    console.log(`Silence timer: ${this.silenceTimer}/4 seconds`);
+                    
+                    if (this.silenceTimer >= 4) {
+                        console.log('4 seconds reached, creating new recording segment...');
+                        clearInterval(this.timerInterval);
+                        this.createNewRecordingSegment();
+                    }
+                }, 1000);
+                
+                // Backup timeout in case interval fails
+                this.silenceTimeout = setTimeout(() => {
+                    console.log('Backup timeout triggered, creating new recording segment...');
+                    if (this.timerInterval) {
+                        clearInterval(this.timerInterval);
+                    }
+                    this.createNewRecordingSegment();
+                }, this.SILENCE_DURATION);
+            }
+            
+            resetSilenceTimer() {
+                if (this.silenceTimeout) {
+                    clearTimeout(this.silenceTimeout);
+                    this.silenceTimeout = null;
+                }
+                if (this.timerInterval) {
+                    clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                }
+                this.silenceTimer = 0;
+                document.getElementById('silenceTimer').style.display = 'none';
+                console.log('Silence timer reset - voice detected again');
+            }
+            
+            createNewRecordingSegment() {
+                console.log('createNewRecordingSegment called. MediaRecorder state:', this.mediaRecorder?.state);
+
+                if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                    console.log('Stopping current recording segment...');
+                    // Stop current silence detection
+                    this.stopSilenceDetection();
+                    this.mediaRecorder.stop();
+                    this.updateStatus('Creating recording segment...');
+                } else {
+                    console.log('MediaRecorder not in recording state, cannot create new segment');
+                }
+            }
+
+            stopSilenceDetection() {
+                if (this.silenceTimeout) {
+                    clearTimeout(this.silenceTimeout);
+                    this.silenceTimeout = null;
+                }
+
+                if (this.timerInterval) {
+                    clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                }
+
+                if (this.volumeCheckInterval) {
+                    clearInterval(this.volumeCheckInterval);
+                    this.volumeCheckInterval = null;
+                }
+
+                this.silenceTimer = 0;
+                document.getElementById('silenceTimer').style.display = 'none';
+            }
+
+            stopRecording() {
+                if (this.mediaRecorder && this.isRecording) {
+                    this.mediaRecorder.stop();
+                    this.isRecording = false;
+                    this.updateStatus(`Recording stopped! Created ${this.recordingCount} segments`);
+                    this.updateUI();
+
+                    this.cleanup();
+                }
+            }
+            
+            createAudioBlob() {
+                console.log('createAudioBlob called. isRecording:', this.isRecording, 'audioChunks.length:', this.audioChunks.length);
+
+                if (this.audioChunks.length > 0) {
+                    const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+                    this.audioBlobs.push(audioBlob);
+                    this.recordingCount++;
+
+                    console.log(`Audio blob ${this.recordingCount} created:`, audioBlob, 'Size:', audioBlob.size);
+
+                    // Update UI to show recording count
+                    this.updateStatus(`Recording segment ${this.recordingCount} saved! Size: ${(audioBlob.size / 1024).toFixed(1)} KB`);
+                    this.updateRecordingCount();
+
+                    // Reset for next recording segment
+                    this.audioChunks = [];
+
+                    if (this.isRecording) {
+                        console.log('Still recording, starting new segment...');
+                        // Continue recording if still in recording mode
+                        this.startNewSegment();
+                    } else {
+                        console.log('Recording stopped, showing final results');
+                        this.showFinalResults();
+                    }
+                } else {
+                    console.log('No audio chunks to create blob from');
+                }
+            }
+
+            async startNewSegment() {
+                console.log('startNewSegment called. isRecording:', this.isRecording, 'stream exists:', !!this.stream);
+
+                try {
+                    if (this.stream && this.isRecording) {
+                        console.log('Starting new segment after 100ms delay...');
+
+                        // Wait a bit before starting new segment
+                        setTimeout(() => {
+                            console.log('Timeout callback executed. isRecording:', this.isRecording);
+
+                            if (this.isRecording) {
+                                console.log('Creating new MediaRecorder...');
+
+                                this.mediaRecorder = new MediaRecorder(this.stream, {
+                                    mimeType: 'audio/webm;codecs=opus'
+                                });
+
+                                this.mediaRecorder.ondataavailable = (event) => {
+                                    if (event.data.size > 0) {
+                                        this.audioChunks.push(event.data);
+                                    }
+                                };
+
+                                this.mediaRecorder.onstop = () => {
+                                    console.log('MediaRecorder stopped, calling createAudioBlob');
+                                    this.createAudioBlob();
+                                };
+
+                                this.mediaRecorder.start(100);
+                                console.log('MediaRecorder started for segment', this.recordingCount + 1);
+                                this.updateStatus(`Recording segment ${this.recordingCount + 1}... (new recording every 4 seconds of silence)`);
+
+                                // Restart silence detection for the new segment
+                                console.log('Restarting silence detection...');
+                                this.startSilenceDetection();
+                            } else {
+                                console.log('Recording stopped during timeout, not starting new segment');
+                            }
+                        }, 100);
+                    } else {
+                        console.log('Cannot start new segment - stream or recording state invalid');
+                    }
+                } catch (error) {
+                    console.error('Error starting new segment:', error);
+                }
+            }
+
+            showFinalResults() {
+                this.displayAllRecordings();
+                this.updateStatus(`Recording complete! Created ${this.recordingCount} segments. Total size: ${this.getTotalSize().toFixed(1)} KB`);
+            }
+
+            updateRecordingCount() {
+                if (this.recordingCount > 0) {
+                    document.getElementById('recordingCount').style.display = 'block';
+                    document.getElementById('countDisplay').textContent = this.recordingCount;
+                }
+            }
+
+            displayAllRecordings() {
+                const segmentsContainer = document.getElementById('audioSegments');
+                segmentsContainer.innerHTML = '';
+
+                this.audioBlobs.forEach((blob, index) => {
+                    const segmentDiv = document.createElement('div');
+                    segmentDiv.className = 'audio-segment';
+
+                    const audioUrl = URL.createObjectURL(blob);
+
+                    segmentDiv.innerHTML = `
+                        <p>Recording ${index + 1} - ${(blob.size / 1024).toFixed(1)} KB</p>
+                        <audio controls src="${audioUrl}"></audio>
+                        <button class="record-button small" onclick="recorder.downloadBlob(${index})">Download</button>
+                    `;
+
+                    segmentsContainer.appendChild(segmentDiv);
+                });
+
+                if (this.audioBlobs.length > 0) {
+                    document.getElementById('audioControls').style.display = 'block';
+                }
+            }
+
+            getTotalSize() {
+                return this.audioBlobs.reduce((total, blob) => total + blob.size, 0) / 1024;
+            }
+            
+            cleanup() {
+                this.stopSilenceDetection();
+
+                if (this.stream) {
+                    this.stream.getTracks().forEach(track => track.stop());
+                    this.stream = null;
+                }
+
+                if (this.audioContext) {
+                    this.audioContext.close();
+                    this.audioContext = null;
+                }
+
+                this.analyser = null;
+            }
+            
+            downloadBlob(index) {
+                if (this.audioBlobs[index]) {
+                    const blob = this.audioBlobs[index];
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `recording-${index + 1}-${new Date().getTime()}.webm`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+            }
+
+            downloadAllRecordings() {
+                this.audioBlobs.forEach((blob, index) => {
+                    this.downloadBlob(index);
+                });
+            }
+
+            clearAllRecordings() {
+                this.audioBlobs = [];
+                this.recordingCount = 0;
+                document.getElementById('audioControls').style.display = 'none';
+                document.getElementById('recordingCount').style.display = 'none';
+                this.updateStatus('Ready to record');
+            }
+            
+            updateStatus(message) {
+                document.getElementById('status').textContent = message;
+            }
+            
+            updateUI() {
+                const button = document.getElementById('recordButton');
+                if (this.isRecording) {
+                    button.textContent = 'Stop Recording';
+                    button.classList.add('recording');
+                } else {
+                    button.textContent = 'Start Recording';
+                    button.classList.remove('recording');
+                }
+            }
+        }
+        
+        // Initialize the voice recorder
+        const recorder = new VoiceRecorder();
+        
+        // Global functions for button clicks
+        function toggleRecording() {
+            recorder.toggleRecording();
+        }
+
+        function downloadAllRecordings() {
+            recorder.downloadAllRecordings();
+        }
+
+        function clearAllRecordings() {
+            recorder.clearAllRecordings();
+        }
+    </script>
+</body>
+</html>
