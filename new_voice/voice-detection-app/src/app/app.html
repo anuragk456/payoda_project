@@ -1,0 +1,234 @@
+<div class="voice-detection-container">
+  <h1>Voice Activity Detection</h1>
+
+  <div class="controls">
+    <button
+      [class.active]="isRecording"
+      (click)="toggleRecording()"
+      [disabled]="isInitializing">
+      {{ isInitializing ? 'Initializing...' : (isRecording ? 'Stop Recording' : 'Start Recording') }}
+    </button>
+
+    <button (click)="clearRecordings()" [disabled]="recordings.length === 0">
+      Clear All ({{ recordings.length }})
+    </button>
+  </div>
+
+  <div class="status" [ngClass]="getStatusClass()">
+    <div class="status-indicator"></div>
+    <span>{{ getStatusText() }}</span>
+  </div>
+
+  <div class="recordings-list" *ngIf="recordings.length > 0">
+    <h3>Recordings ({{ recordings.length }})</h3>
+    <div class="recording-item" *ngFor="let recording of recordings; let i = index">
+      <div class="recording-info">
+        <span class="recording-number">#{{ i + 1 }}</span>
+        <span class="recording-duration">{{ formatDuration(recording.duration) }}</span>
+        <span class="recording-time">{{ formatTime(recording.timestamp) }}</span>
+      </div>
+      <div class="recording-controls">
+        <audio [src]="recording.url" controls></audio>
+        <button (click)="downloadRecording(recording, i)">Download</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.voice-detection-container {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 2rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+h1 {
+  text-align: center;
+  color: #333;
+  margin-bottom: 2rem;
+}
+
+.controls {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+button:first-child {
+  background: #007bff;
+  color: white;
+}
+
+button:first-child.active {
+  background: #dc3545;
+}
+
+button:first-child:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+button:first-child.active:hover:not(:disabled) {
+  background: #c82333;
+}
+
+button:last-child {
+  background: #6c757d;
+  color: white;
+}
+
+button:last-child:hover:not(:disabled) {
+  background: #545b62;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 2rem;
+  font-weight: 500;
+}
+
+.status.idle {
+  background: #f8f9fa;
+  color: #6c757d;
+}
+
+.status.listening {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.status.speaking {
+  background: #e8f5e8;
+  color: #388e3c;
+}
+
+.status.silence {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status.listening .status-indicator,
+.status.speaking .status-indicator {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.recordings-list {
+  border-top: 1px solid #dee2e6;
+  padding-top: 2rem;
+}
+
+.recordings-list h3 {
+  margin-bottom: 1rem;
+  color: #495057;
+}
+
+.recording-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  border: 1px solid #dee2e6;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  background: #f8f9fa;
+}
+
+.recording-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.recording-number {
+  font-weight: bold;
+  color: #007bff;
+}
+
+.recording-duration {
+  background: #e9ecef;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.recording-time {
+  color: #6c757d;
+  font-size: 0.875rem;
+}
+
+.recording-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+audio {
+  width: 200px;
+}
+
+.recording-controls button {
+  background: #28a745;
+  color: white;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+.recording-controls button:hover {
+  background: #218838;
+}
+
+@media (max-width: 768px) {
+  .recording-item {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .recording-info {
+    justify-content: space-between;
+  }
+
+  .recording-controls {
+    justify-content: center;
+  }
+
+  audio {
+    width: 100%;
+  }
+}
+</style>
+
+
+<router-outlet />
