@@ -11,7 +11,7 @@ setup(
     description="A package for managing interview transcripts in Firebird database",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/firebird-package",
+    url="https://github.com/anuragk456/payoda_project/tree/main/package_db/firebird_package",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -26,8 +26,7 @@ setup(
     ],
     python_requires=">=3.7",
     install_requires=[
-        # Add your dependencies here
-        # For example: "fdb>=2.0.0",
+        "fdb>=2.0.0"
     ],
     extras_require={
         "dev": [

@@ -1,6 +1,11 @@
-from api.database.db_connection import get_fdb_connection  
-from datetime import datetime, timedelta  
-from api.core.loggerconfig import logger
+from datetime import datetime, timedelta
+
+try:
+    from api.database.db_connection import get_fdb_connection
+    from api.core.loggerconfig import logger
+except ImportError:
+    from .config import get_fdb_connection, get_default_logger
+    logger = get_default_logger(__name__)
 
 def insert_transcript(
     name: str, 
@@ -56,10 +61,10 @@ def insert_transcript(
             # Insert into transcripts
             cursor.execute(
                 '''
-                INSERT INTO transcripts (name, role, inid, transcript)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO transcripts (name, role, inid, transcript, created_at)
+                VALUES (?, ?, ?, ?, ?)
                 ''',
-                [name, role, inid, transcript]
+                [name, role, inid, transcript, current_time]
             )
             
             connection.commit()
@@ -115,10 +120,10 @@ def insert_transcript(
             # Insert into transcripts
             cursor.execute(
                 '''
-                INSERT INTO transcripts (name, role, inid, transcript)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO transcripts (name, role, inid, transcript, created_at)
+                VALUES (?, ?, ?, ?, ?)
                 ''',
-                [name, role, inid, transcript]
+                [name, role, inid, transcript, current_time]
             )
 
             cursor.execute(
