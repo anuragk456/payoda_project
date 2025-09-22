@@ -37,11 +37,20 @@ def get_fdb_connection():
             "fdb package not installed. Install it with: pip install fdb"
         )
 
-    connection = fdb.connect(
-        'localhost:/Users/anuragakp456/firebird_DB/transcript.fdb',
-        user='SYSDBA',
-        password='masterkey'
-    )
+    # Try embedded connection first (no server required)
+    try:
+        connection = fdb.connect(
+            '/Users/anuragakp456/firebird_DB/transcript.fdb',
+            user='SYSDBA',
+            password='masterkey'
+        )
+    except Exception:
+        # Fallback to server connection
+        connection = fdb.connect(
+            'localhost:/Users/anuragakp456/firebird_DB/transcript.fdb',
+            user='SYSDBA',
+            password='masterkey'
+        )
 
     return connection
 
